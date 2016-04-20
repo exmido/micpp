@@ -41,15 +41,16 @@ SOFTWARE.
 	typedef int INT_T;
 #endif
 
+#define ISCPP				1
 #define MICPP_MAX_PATH		260
-
-#define MICPP_MAX_PARAM		9
-#define MICPP_MAX_TOKEN		55
 
 #define GLOBAL(name)		static micpp::variable name
 #define INDEX(name)			static const int name
 #define LOCAL(name)			micpp::variable name
+
 #define ISDEF()				true
+#define CPPFUN(fun)			fun
+#define MIFUN(fun)			(*(cppNode*)(fun).ptr)
 
 #define FUNCTION0(name)																			inline static micpp::variable name()
 #define FUNCTION1(name, param0)																	inline static micpp::variable name(micpp::variable param0)
@@ -105,9 +106,11 @@ class CompilerInfo;
 class micpp
 {
 public:
+	friend class cppNative;
 	friend class cppVariable;
 	friend class cppLocal;
 	friend class cppGlobal;
+	friend class cppOperator;
 	friend class cppBlock;
 	friend class cppFunction;
 
@@ -440,6 +443,8 @@ protected:
 	static std::map<std::string, INT_T> NAMEMAP;
 	static bool ISNDEF;
 
+	const char* name;
+
 	std::map<std::string, variable*> varmap;	//c++ variable
 	std::map<std::string, cppNode*> funmap;		//c++ function
 	std::map<std::string, cppNode*> nodemap;	//cppGlobal, cppFunction
@@ -537,72 +542,6 @@ public:
 	//Global
 	static micpp* Global();
 
-	//Call
-	static micpp::variable Call(cppNode* node);
-
-	static micpp::variable Call(cppNode* node,
-								micpp::variable param0);
-
-	static micpp::variable Call(cppNode* node,
-								micpp::variable param0,
-								micpp::variable param1);
-
-	static micpp::variable Call(cppNode* node,
-								micpp::variable param0,
-								micpp::variable param1,
-								micpp::variable param2);
-
-	static micpp::variable Call(cppNode* node,
-								micpp::variable param0,
-								micpp::variable param1,
-								micpp::variable param2,
-								micpp::variable param3);
-
-	static micpp::variable Call(cppNode* node,
-								micpp::variable param0,
-								micpp::variable param1,
-								micpp::variable param2,
-								micpp::variable param3,
-								micpp::variable param4);
-
-	static micpp::variable Call(cppNode* node,
-								micpp::variable param0,
-								micpp::variable param1,
-								micpp::variable param2,
-								micpp::variable param3,
-								micpp::variable param4,
-								micpp::variable param5);
-
-	static micpp::variable Call(cppNode* node,
-								micpp::variable param0,
-								micpp::variable param1,
-								micpp::variable param2,
-								micpp::variable param3,
-								micpp::variable param4,
-								micpp::variable param5,
-								micpp::variable param6);
-
-	static micpp::variable Call(cppNode* node,
-								micpp::variable param0,
-								micpp::variable param1,
-								micpp::variable param2,
-								micpp::variable param3,
-								micpp::variable param4,
-								micpp::variable param5,
-								micpp::variable param6,
-								micpp::variable param7);
-
-	static micpp::variable Call(cppNode* node,
-								micpp::variable param0,
-								micpp::variable param1,
-								micpp::variable param2,
-								micpp::variable param3,
-								micpp::variable param4,
-								micpp::variable param5,
-								micpp::variable param6,
-								micpp::variable param7,
-								micpp::variable param8);
-
 //non-static function
 	//Variable
 	micpp::variable* Variable(const char* name);
@@ -627,19 +566,7 @@ public:
 
 //std
 	INDEX(SIZEOF_VARIABLE) = sizeof(micpp::variable);
-	
-	//malloc
-	FUNCTION1(malloc, param)
-	{
-		return new variable[param];
-	}
-
-	//free
-	FUNCTION1(free, param)
-	{
-		delete[] param.ptr;
-		return 0;
-	}
+	INDEX(MAX_PARAM) = 9;
 
 	//isdef
 	FUNCTION0(isdef)
@@ -647,6 +574,21 @@ public:
 		ISNDEF = false;
 		return 1;
 	}
+	
+	//cppfun
+	static micpp::variable cppfun(micpp::variable fun);
+
+	//mifun
+	FUNCTION1(mifun, fun)
+	{
+		return fun;
+	}
+
+	//malloc
+	static micpp::variable malloc(micpp::variable param);
+
+	//free
+	static micpp::variable free(micpp::variable param);
 
 	//print_val
 	FUNCTION2(print_val, param, c=0)
@@ -706,23 +648,6 @@ public:
 
 		PRINT(micpp::STRING);
 		return param;
-	}
-
-	//compiler
-	FUNCTION1(compiler, filename)
-	{
-		int i=0;
-		for(; filename[i] != 0; ++i)
-			micpp::STRING[i] = filename[i];
-
-		micpp::STRING[i] = '\0';
-		return (micpp::variable*)Compiler(micpp::STRING);
-	}
-
-	//destroy
-	FUNCTION1(destroy, mi)
-	{
-		return (micpp::variable*)Destroy((micpp*)mi.ptr);
 	}
 
 	//copy
@@ -2382,6 +2307,132 @@ public:
 	virtual NODE_INTERFACE Interface()
 	{
 		return NODE_UNKNOWN;
+	}
+
+	// ()
+	micpp::variable operator () ()
+	{
+		micpp::variable p[micpp::MAX_PARAM + 1];
+		p[micpp::MAX_PARAM] = 0;
+
+		return *Run(p).ptr;
+	}
+
+	micpp::variable operator () (micpp::variable v0)
+	{
+		micpp::variable p[micpp::MAX_PARAM + 1];
+		p[0] = v0;
+		p[micpp::MAX_PARAM] = 1;
+
+		return *Run(p).ptr;
+	}
+
+	micpp::variable operator () (micpp::variable v0, micpp::variable v1)
+	{
+		micpp::variable p[micpp::MAX_PARAM + 1];
+		p[0] = v0;
+		p[1] = v1;
+		p[micpp::MAX_PARAM] = 2;
+
+		return *Run(p).ptr;
+	}
+
+	micpp::variable operator () (micpp::variable v0, micpp::variable v1, micpp::variable v2)
+	{
+		micpp::variable p[micpp::MAX_PARAM + 1];
+		p[0] = v0;
+		p[1] = v1;
+		p[2] = v2;
+		p[micpp::MAX_PARAM] = 3;
+
+		return *Run(p).ptr;
+	}
+
+	micpp::variable operator () (micpp::variable v0, micpp::variable v1, micpp::variable v2, micpp::variable v3)
+	{
+		micpp::variable p[micpp::MAX_PARAM + 1];
+		p[0] = v0;
+		p[1] = v1;
+		p[2] = v2;
+		p[3] = v3;
+		p[micpp::MAX_PARAM] = 4;
+
+		return *Run(p).ptr;
+	}
+
+	micpp::variable operator () (micpp::variable v0, micpp::variable v1, micpp::variable v2, micpp::variable v3, micpp::variable v4)
+	{
+		micpp::variable p[micpp::MAX_PARAM + 1];
+		p[0] = v0;
+		p[1] = v1;
+		p[2] = v2;
+		p[3] = v3;
+		p[4] = v4;
+		p[micpp::MAX_PARAM] = 5;
+
+		return *Run(p).ptr;
+	}
+
+	micpp::variable operator () (micpp::variable v0, micpp::variable v1, micpp::variable v2, micpp::variable v3, micpp::variable v4, micpp::variable v5)
+	{
+		micpp::variable p[micpp::MAX_PARAM + 1];
+		p[0] = v0;
+		p[1] = v1;
+		p[2] = v2;
+		p[3] = v3;
+		p[4] = v4;
+		p[5] = v5;
+		p[micpp::MAX_PARAM] = 6;
+
+		return *Run(p).ptr;
+	}
+
+	micpp::variable operator () (micpp::variable v0, micpp::variable v1, micpp::variable v2, micpp::variable v3, micpp::variable v4, micpp::variable v5, micpp::variable v6)
+	{
+		micpp::variable p[micpp::MAX_PARAM + 1];
+		p[0] = v0;
+		p[1] = v1;
+		p[2] = v2;
+		p[3] = v3;
+		p[4] = v4;
+		p[5] = v5;
+		p[6] = v6;
+		p[micpp::MAX_PARAM] = 7;
+
+		return *Run(p).ptr;
+	}
+
+	micpp::variable operator () (micpp::variable v0, micpp::variable v1, micpp::variable v2, micpp::variable v3, micpp::variable v4, micpp::variable v5, micpp::variable v6, micpp::variable v7)
+	{
+		micpp::variable p[micpp::MAX_PARAM + 1];
+		p[0] = v0;
+		p[1] = v1;
+		p[2] = v2;
+		p[3] = v3;
+		p[4] = v4;
+		p[5] = v5;
+		p[6] = v6;
+		p[7] = v7;
+		p[micpp::MAX_PARAM] = 8;
+
+		return *Run(p).ptr;
+	}
+
+	micpp::variable operator () (micpp::variable v0, micpp::variable v1, micpp::variable v2, micpp::variable v3, micpp::variable v4, micpp::variable v5, micpp::variable v6, micpp::variable v7, micpp::variable v8)
+	{
+		micpp::variable p[micpp::MAX_PARAM + 1];
+		p[0] = v0;
+		p[1] = v1;
+		p[2] = v2;
+		p[3] = v3;
+		p[4] = v4;
+		p[5] = v5;
+		p[6] = v6;
+		p[7] = v7;
+		p[8] = v8;
+		p[micpp::MAX_PARAM] = 9;
+
+		return *Run(p).ptr;
 	}
 };
 

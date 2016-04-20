@@ -35,7 +35,7 @@ public:
 	int num;
 	micpp::variable v;
 	micpp::variable fun;
-	micpp::variable node[MICPP_MAX_PARAM];
+	micpp::variable node[micpp::MAX_PARAM];
 
 	//cppNative
 	cppNative(micpp* _cpp, int _line, micpp::variable::VAR_FUN_PARAM0 _fun)
@@ -118,13 +118,28 @@ public:
 		fun = _fun;
 	}
 
+	cppNative(micpp::variable _fun)
+		: cppNode(NULL, 0)
+	{
+		v = 0;
+		num = -1;
+		fun = _fun;
+	}
+
 	//Run
 	virtual micpp::variable Run(micpp::variable param=0)
 	{
-		while(param[MICPP_MAX_PARAM] < num)
+		if(num >= 0)
 		{
-			param[param[MICPP_MAX_PARAM]] = node[param[MICPP_MAX_PARAM]];
-			param[MICPP_MAX_PARAM] += 1;
+			while(param[micpp::MAX_PARAM] < num)
+			{
+				param[param[micpp::MAX_PARAM]] = node[param[micpp::MAX_PARAM]];
+				param[micpp::MAX_PARAM] += 1;
+			}
+		}
+		else
+		{
+			num = param[micpp::MAX_PARAM];
 		}
 
 		switch(num)
@@ -170,7 +185,7 @@ public:
 			break;
 
 		default:
-			sprintf(micpp::STRING, "micpp %s(%d): function \"%p\" parameter number error...\n", micpp::Name(cpp), line, fun.ptr);
+			sprintf(micpp::STRING, "micpp %s(%d): function \"%p\" parameter number error...\n", cpp->name, line, fun.ptr);
 			micpp::PRINT(micpp::STRING);
 		}
 
@@ -230,22 +245,36 @@ public:
 				std::map<std::string, micpp::variable*>::iterator vit = c->varmap.find(name[0]);
 				if(vit != c->varmap.end())
 				{
+#ifndef _DEBUG
+					name[0][0] = '\0';
+					strcpy(&name[1][0], "p");
+#endif
 					micpp::ISNDEF = true;
-					return vit->second;
+					v = vit->second;
+					return v;
 				}
 
 				std::map<std::string, cppNode*>::iterator nit = c->nodemap.find(name[0]);
 				if(nit != c->nodemap.end())
 				{
+#ifndef _DEBUG
+					name[0][0] = '\0';
+#endif
 					v = (micpp::variable*)nit->second;
 
 					//init global
 					if(nit->second->Interface() == NODE_GLOBAL)
 					{
+#ifndef _DEBUG
+						strcpy(&name[1][0], "p");
+#endif
 						micpp::ISNDEF = true;
-						return nit->second->Run().ptr;
+						v = nit->second->Run().ptr;
+						return v;
 					}
-
+#ifndef _DEBUG
+					name[1][0] = '\0';
+#endif
 					micpp::ISNDEF = true;
 					return &v;
 				}
@@ -253,6 +282,9 @@ public:
 				nit = c->funmap.find(name[0]);
 				if(nit != c->funmap.end())
 				{
+#ifndef _DEBUG
+					name[0][0] = name[1][0] = '\0';
+#endif
 					v = (micpp::variable*)nit->second;
 					micpp::ISNDEF = true;
 					return &v;
@@ -266,22 +298,37 @@ public:
 					std::map<std::string, micpp::variable*>::iterator vit = c->varmap.find(name[0]);
 					if(vit != c->varmap.end())
 					{
+#ifndef _DEBUG
+						name[0][0] = '\0';
+						strcpy(&name[1][0], "p");
+#endif
 						micpp::ISNDEF = true;
-						return vit->second;
+						v = vit->second;
+						return v;
 					}
 
 					std::map<std::string, cppNode*>::iterator nit = c->nodemap.find(name[0]);
 					if(nit != c->nodemap.end())
 					{
+#ifndef _DEBUG
+						name[0][0] = '\0';
+#endif
 						v = (micpp::variable*)nit->second;
 
 						//init global
 						if(nit->second->Interface() == NODE_GLOBAL)
 						{
+#ifndef _DEBUG
+							strcpy(&name[1][0], "p");
+#endif
 							micpp::ISNDEF = true;
-							return nit->second->Run().ptr;
+							v = nit->second->Run().ptr;
+							return v;
 						}
 
+#ifndef _DEBUG
+						name[1][0] = '\0';
+#endif
 						micpp::ISNDEF = true;
 						return &v;
 					}
@@ -289,6 +336,9 @@ public:
 					nit = c->funmap.find(name[0]);
 					if(nit != c->funmap.end())
 					{
+#ifndef _DEBUG
+						name[0][0] = name[1][0] = '\0';
+#endif
 						v = (micpp::variable*)nit->second;
 						micpp::ISNDEF = true;
 						return &v;
@@ -299,16 +349,19 @@ public:
 			//not find
 			if(micpp::ISNDEF)
 			{
-				sprintf(micpp::STRING, "micpp %s(%d): can not find variable \"%s::%s\"\n", micpp::Name(cpp), line, name[1][0] != '\0' ? name[1] : "", name[0]);
+				sprintf(micpp::STRING, "micpp %s(%d): can not find variable \"%s::%s\"\n", cpp->name, line, name[1][0] != '\0' ? name[1] : "", name[0]);
 				micpp::PRINT(micpp::STRING);
 			}
 
 			micpp::ISNDEF = true;
 			return &v;
 		}
-
-		//convert to f32
-		if(!strcmp(name[1], "i"))
+		else if(!strcmp(name[1], "p"))
+		{
+			micpp::ISNDEF = true;
+			return v;
+		}
+		else if(!strcmp(name[1], "i")) //convert int to f32
 		{
 			v = (float)((int)(INT_T)v.ptr);
 			name[1][0] = '\0';
@@ -369,7 +422,7 @@ public:
 		num = *op->Run().ptr;
 		if((num ? num : 1) < size)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d): variable \"%s::%s\" size error...\n",  micpp::Name(cpp), line, name[1][0] != '\0' ? name[1] : "", name[0]);
+			sprintf(micpp::STRING, "micpp %s(%d): variable \"%s::%s\" size error...\n",  cpp->name, line, name[1][0] != '\0' ? name[1] : "", name[0]);
 			micpp::PRINT(micpp::STRING);
 			return 0;
 		}
@@ -605,7 +658,7 @@ public:
 			return &v;
 
 		case SYMBOL_ROUND_L:
-			vr.ptr = new micpp::variable[MICPP_MAX_PARAM + 1];
+			vr.ptr = new micpp::variable[micpp::MAX_PARAM + 1];
 			vl = *left->Run(right->Run(vr)).ptr;
 			v = ((cppNode*)vl.ptr)->Run(vr);
 			delete vr.ptr;
@@ -620,7 +673,7 @@ public:
 			break;
 		}
 
-		sprintf(micpp::STRING, "micpp %s(%d): unknown operator \"%d\"\n", micpp::Name(cpp), line, op);
+		sprintf(micpp::STRING, "micpp %s(%d): unknown operator \"%d\"\n", cpp->name, line, op);
 		micpp::PRINT(micpp::STRING);
 		return 0;
 	}
@@ -904,14 +957,14 @@ public:
 class cppFunction : public cppNode
 {
 public:
-	char name[MICPP_MAX_PARAM + 1][MICPP_MAX_NAME]; //name[MICPP_MAX_PARAM] as function name
-	cppNode* node[MICPP_MAX_PARAM + 1]; //node[MICPP_MAX_PARAM] as block
+	char name[micpp::MAX_PARAM + 1][MICPP_MAX_NAME]; //name[micpp::MAX_PARAM] as function name
+	cppNode* node[micpp::MAX_PARAM + 1]; //node[micpp::MAX_PARAM] as block
 
 	//cppFunction
 	cppFunction(micpp* _cpp, int _line)
 		: cppNode(_cpp, _line)
 	{
-		for(int i=0; i < MICPP_MAX_PARAM + 1; ++i)
+		for(int i=0; i < micpp::MAX_PARAM + 1; ++i)
 		{
 			name[i][0] = '\0';
 			node[i] = NULL;
@@ -921,7 +974,7 @@ public:
 	//~cppFunction
 	virtual ~cppFunction()
 	{
-		for(int i=0; i < MICPP_MAX_PARAM + 1; ++i)
+		for(int i=0; i < micpp::MAX_PARAM + 1; ++i)
 		{
 			if(node[i])
 				delete node[i];
@@ -935,22 +988,22 @@ public:
 		std::list< std::pair<std::string, micpp::variable*> >* varstk = cpp->varstk;
 
 		cpp->varstk = &stack;
-		std::list< std::pair<std::string, micpp::variable*> >::iterator it[MICPP_MAX_PARAM] = {cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end()};
+		std::list< std::pair<std::string, micpp::variable*> >::iterator it[micpp::MAX_PARAM] = {cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end(), cpp->varstk->end()};
 
-		for(int i=0; i < MICPP_MAX_PARAM; ++i)
+		for(int i=0; i < micpp::MAX_PARAM; ++i)
 		{
 			if(name[i][0] != '\0')
 			{
-				if(param[MICPP_MAX_PARAM] <= i)
+				if(param[micpp::MAX_PARAM] <= i)
 				{
 					if(node[i])
 					{
 						param[i] = *node[i]->Run(param).ptr;
-						param[MICPP_MAX_PARAM] += 1;
+						param[micpp::MAX_PARAM] += 1;
 					}
 					else
 					{
-						sprintf(micpp::STRING, "micpp %s(%d): function \"%s()\" param error\n", micpp::Name(cpp), line, name[MICPP_MAX_PARAM]);
+						sprintf(micpp::STRING, "micpp %s(%d): function \"%s()\" param error\n", cpp->name, line, name[micpp::MAX_PARAM]);
 						micpp::PRINT(micpp::STRING);
 						cpp->varstk = varstk;
 						return 0;
@@ -962,9 +1015,9 @@ public:
 			}
 			else
 			{
-				if(param[MICPP_MAX_PARAM] != i)
+				if(param[micpp::MAX_PARAM] != i)
 				{
-					sprintf(micpp::STRING, "micpp %s(%d): function \"%s()\" param error\n", micpp::Name(cpp), line, name[MICPP_MAX_PARAM]);
+					sprintf(micpp::STRING, "micpp %s(%d): function \"%s()\" param error\n", cpp->name, line, name[micpp::MAX_PARAM]);
 					micpp::PRINT(micpp::STRING);
 					cpp->varstk = varstk;
 					return 0;
@@ -974,9 +1027,9 @@ public:
 			}
 		}
 
-		micpp::variable ret = node[MICPP_MAX_PARAM]->Run(param);
+		micpp::variable ret = node[micpp::MAX_PARAM]->Run(param);
 
-		for(int i=0; i < MICPP_MAX_PARAM; ++i)
+		for(int i=0; i < micpp::MAX_PARAM; ++i)
 		{
 			if(it[i] != cpp->varstk->end())
 				cpp->varstk->erase(it[i]);
@@ -998,7 +1051,7 @@ class cppParam : public cppNode
 {
 public:
 	int num;
-	cppNode* node[MICPP_MAX_PARAM];
+	cppNode* node[micpp::MAX_PARAM];
 
 	//cppParam
 	cppParam(micpp* _cpp, int _line)
@@ -1006,14 +1059,14 @@ public:
 	{
 		num = 0;
 
-		for(int i=0; i < MICPP_MAX_PARAM; ++i)
+		for(int i=0; i < micpp::MAX_PARAM; ++i)
 			node[i] = NULL;
 	}
 
 	//~cppParam
 	virtual ~cppParam()
 	{
-		for(int i=0; i < MICPP_MAX_PARAM; ++i)
+		for(int i=0; i < micpp::MAX_PARAM; ++i)
 		{
 			if(node[i])
 				delete node[i];
@@ -1026,7 +1079,7 @@ public:
 		for(int i=0; i < num; ++i)
 			param[i] = *node[i]->Run(param).ptr;
 
-		param[MICPP_MAX_PARAM] = num;
+		param[micpp::MAX_PARAM] = num;
 		return param;
 	}
 
@@ -1087,7 +1140,7 @@ public:
 	char*	ptr;
 	char*	end;
 
-	char	token[MICPP_MAX_TOKEN + 1];
+	char	token[32];
 	int		line;
 
 	bool	error;
@@ -1336,6 +1389,7 @@ void (*micpp::PRINT)(const char*) = print;
 //micpp
 micpp::micpp()
 {
+	name = NULL;
 	varstk = NULL;
 }
 
@@ -1415,7 +1469,7 @@ micpp* micpp::Compiler(const char* filename, bool cpp)
 
 	if(Token(info, TYPE_SYMBOL, "{") == false)
 	{
-		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(ret), info.line, "miss {");
+		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", ret->name, info.line, "miss {");
 		micpp::PRINT(micpp::STRING);
 		goto _COMPILER_ERROR;
 	}
@@ -1436,14 +1490,14 @@ micpp* micpp::Compiler(const char* filename, bool cpp)
 
 	if(Token(info, TYPE_SYMBOL, "}") == false)
 	{
-		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(ret), info.line, "miss }");
+		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", ret->name, info.line, "miss }");
 		micpp::PRINT(micpp::STRING);
 		goto _COMPILER_ERROR;
 	}
 
 	if(Token(info, TYPE_SYMBOL, ";") == false)
 	{
-		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(ret), info.line, "miss ;");
+		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", ret->name, info.line, "miss ;");
 		micpp::PRINT(micpp::STRING);
 		goto _COMPILER_ERROR;
 	}
@@ -1490,7 +1544,7 @@ micpp* micpp::Compiler(void* ptr, unsigned int size)
 
 	if(Token(info, TYPE_SYMBOL, "{") == false)
 	{
-		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(ret), info.line, "miss {");
+		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", ret->name, info.line, "miss {");
 		micpp::PRINT(micpp::STRING);
 		goto _COMPILER_ERROR;
 	}
@@ -1511,14 +1565,14 @@ micpp* micpp::Compiler(void* ptr, unsigned int size)
 
 	if(Token(info, TYPE_SYMBOL, "}") == false)
 	{
-		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(ret), info.line, "miss }");
+		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", ret->name, info.line, "miss }");
 		micpp::PRINT(micpp::STRING);
 		goto _COMPILER_ERROR;
 	}
 
 	if(Token(info, TYPE_SYMBOL, ";") == false)
 	{
-		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(ret), info.line, "miss ;");
+		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", ret->name, info.line, "miss ;");
 		micpp::PRINT(micpp::STRING);
 		goto _COMPILER_ERROR;
 	}
@@ -1596,13 +1650,19 @@ micpp* micpp::Global()
 		MICPP = new micpp;
 
 		//var
+		static micpp::variable MICPP_IS_CPP = 0;
+		MICPP->RegVar("ISCPP", &MICPP_IS_CPP);
+
 		static micpp::variable MICPP_SIZEOF_VARIABLE = micpp::SIZEOF_VARIABLE;
 		MICPP->RegVar("SIZEOF_VARIABLE", &MICPP_SIZEOF_VARIABLE);
+
+		static micpp::variable MICPP_MAX_PARAM = micpp::MAX_PARAM;
+		MICPP->RegVar("MAX_PARAM", &MICPP_MAX_PARAM);
 
 		static micpp::variable MICPP_F32_MAX = FLT_MAX;
 		MICPP->RegVar("F32_MAX", &MICPP_F32_MAX);
 
-		static micpp::variable MICPP_F32_MIN = -FLT_MAX;
+		static micpp::variable MICPP_F32_MIN = FLT_MIN;
 		MICPP->RegVar("F32_MIN", &MICPP_F32_MIN);
 
 		static micpp::variable MICPP_INT_MAX = (micpp::variable*)INT_MAX;
@@ -1612,17 +1672,18 @@ micpp* micpp::Global()
 		MICPP->RegVar("INT_MIN", &MICPP_INT_MIN);
 
 		//fun
+		MICPP->RegFun("ISDEF", micpp::isdef);
+		MICPP->RegFun("CPPFUN", micpp::cppfun);
+		MICPP->RegFun("MIFUN", micpp::mifun);
+
 		MICPP->RegFun("malloc", micpp::malloc);
 		MICPP->RegFun("free", micpp::free);
 
-		MICPP->RegFun("ISDEF", micpp::isdef);
 		MICPP->RegFun("print_val", micpp::print_val);
 		MICPP->RegFun("print_ptr", micpp::print_ptr);
 		MICPP->RegFun("print_char", micpp::print_char);
 		MICPP->RegFun("print_string", micpp::print_string);
-		
-		MICPP->RegFun("compiler", micpp::compiler);
-		MICPP->RegFun("destroy", micpp::destroy);
+
 		MICPP->RegFun("copy", micpp::copy);
 		MICPP->RegFun("offset", micpp::offset);
 		MICPP->RegFun("ipart", micpp::ipart);
@@ -1630,177 +1691,6 @@ micpp* micpp::Global()
 	}
 
 	return MICPP;
-}
-
-//Call
-micpp::variable micpp::Call(cppNode* node)
-{
-	micpp::variable p[MICPP_MAX_PARAM + 1];
-	p[MICPP_MAX_PARAM] = 0;
-
-	return *node->Run(p).ptr;
-}
-
-micpp::variable micpp::Call(cppNode* node,
-							micpp::variable param0)
-{
-	micpp::variable p[MICPP_MAX_PARAM + 1];
-	p[0] = param0;
-	p[MICPP_MAX_PARAM] = 1;
-
-	return *node->Run(p).ptr;
-}
-
-micpp::variable micpp::Call(cppNode* node,
-							micpp::variable param0,
-							micpp::variable param1)
-{
-	micpp::variable p[MICPP_MAX_PARAM + 1];
-	p[0] = param0;
-	p[1] = param1;
-	p[MICPP_MAX_PARAM] = 2;
-
-	return *node->Run(p).ptr;
-}
-
-micpp::variable micpp::Call(cppNode* node,
-							micpp::variable param0,
-							micpp::variable param1,
-							micpp::variable param2)
-{
-	micpp::variable p[MICPP_MAX_PARAM + 1];
-	p[0] = param0;
-	p[1] = param1;
-	p[2] = param2;
-	p[MICPP_MAX_PARAM] = 3;
-
-	return *node->Run(p).ptr;
-}
-
-micpp::variable micpp::Call(cppNode* node,
-							micpp::variable param0,
-							micpp::variable param1,
-							micpp::variable param2,
-							micpp::variable param3)
-{
-	micpp::variable p[MICPP_MAX_PARAM + 1];
-	p[0] = param0;
-	p[1] = param1;
-	p[2] = param2;
-	p[3] = param3;
-	p[MICPP_MAX_PARAM] = 4;
-
-	return *node->Run(p).ptr;
-}
-
-micpp::variable micpp::Call(cppNode* node,
-							micpp::variable param0,
-							micpp::variable param1,
-							micpp::variable param2,
-							micpp::variable param3,
-							micpp::variable param4)
-{
-	micpp::variable p[MICPP_MAX_PARAM + 1];
-	p[0] = param0;
-	p[1] = param1;
-	p[2] = param2;
-	p[3] = param3;
-	p[4] = param4;
-	p[MICPP_MAX_PARAM] = 5;
-
-	return *node->Run(p).ptr;
-}
-
-micpp::variable micpp::Call(cppNode* node,
-							micpp::variable param0,
-							micpp::variable param1,
-							micpp::variable param2,
-							micpp::variable param3,
-							micpp::variable param4,
-							micpp::variable param5)
-{
-	micpp::variable p[MICPP_MAX_PARAM + 1];
-	p[0] = param0;
-	p[1] = param1;
-	p[2] = param2;
-	p[3] = param3;
-	p[4] = param4;
-	p[5] = param5;
-	p[MICPP_MAX_PARAM] = 6;
-
-	return *node->Run(p).ptr;
-}
-
-micpp::variable micpp::Call(cppNode* node,
-							micpp::variable param0,
-							micpp::variable param1,
-							micpp::variable param2,
-							micpp::variable param3,
-							micpp::variable param4,
-							micpp::variable param5,
-							micpp::variable param6)
-{
-	micpp::variable p[MICPP_MAX_PARAM + 1];
-	p[0] = param0;
-	p[1] = param1;
-	p[2] = param2;
-	p[3] = param3;
-	p[4] = param4;
-	p[5] = param5;
-	p[6] = param6;
-	p[MICPP_MAX_PARAM] = 7;
-
-	return *node->Run(p).ptr;
-}
-
-micpp::variable micpp::Call(cppNode* node,
-							micpp::variable param0,
-							micpp::variable param1,
-							micpp::variable param2,
-							micpp::variable param3,
-							micpp::variable param4,
-							micpp::variable param5,
-							micpp::variable param6,
-							micpp::variable param7)
-{
-	micpp::variable p[MICPP_MAX_PARAM + 1];
-	p[0] = param0;
-	p[1] = param1;
-	p[2] = param2;
-	p[3] = param3;
-	p[4] = param4;
-	p[5] = param5;
-	p[6] = param6;
-	p[7] = param7;
-	p[MICPP_MAX_PARAM] = 8;
-
-	return *node->Run(p).ptr;
-}
-
-micpp::variable micpp::Call(cppNode* node,
-							micpp::variable param0,
-							micpp::variable param1,
-							micpp::variable param2,
-							micpp::variable param3,
-							micpp::variable param4,
-							micpp::variable param5,
-							micpp::variable param6,
-							micpp::variable param7,
-							micpp::variable param8)
-{
-	micpp::variable p[MICPP_MAX_PARAM + 1];
-	p[0] = param0;
-	p[1] = param1;
-	p[2] = param2;
-	p[3] = param3;
-	p[4] = param4;
-	p[5] = param5;
-	p[6] = param6;
-	p[7] = param7;
-	p[8] = param8;
-	p[MICPP_MAX_PARAM] = 9;
-
-	return *node->Run(p).ptr;
 }
 
 //Variable
@@ -1973,6 +1863,35 @@ void micpp::RegFun(const char* name, micpp::variable::VAR_FUN_PARAM9 info, micpp
 	node->node[8] = param8;
 }
 
+//cppfun
+micpp::variable micpp::cppfun(micpp::variable fun)
+{
+	static cppNative* NODE = NULL;
+	if(NODE)
+	{
+		delete NODE;
+		NODE = NULL;
+	}
+	
+	if(fun != 0)
+		NODE = new cppNative(fun);
+
+	return (micpp::variable*)NODE;
+}
+
+//malloc
+micpp::variable micpp::malloc(micpp::variable param)
+{
+	return new variable[param];
+}
+
+//free
+micpp::variable micpp::free(micpp::variable param)
+{
+	delete[] param.ptr;
+	return 0;
+}
+
 //<global>			-> ( "GLOBAL(" | "INDEX(" ) <name> ")" (("=" <expression>) | ("[<expression>]" ("={" <expression> ("," <expression>)* "}")?) | ("[]={" <expression> ("," <expression>)* "}"))? ";"
 cppNode* micpp::_global(CompilerInfo& info, bool reg)
 {
@@ -2096,8 +2015,8 @@ cppNode* micpp::_global(CompilerInfo& info, bool reg)
 				}
 				else if(!strcmp(ret->name[1], "INDEX"))
 				{
-					fprintf(info.fp, "\t\tstatic micpp::variable %s_%s = %s;\r\n", micpp::Name(this), ret->name[0], ret->name[0]);
-					fprintf(info.fp, "\t\t_cpp->RegVar(\"%s\", &%s_%s);\r\n", ret->name[0], micpp::Name(this), ret->name[0]);
+					fprintf(info.fp, "\t\tstatic micpp::variable %s_%s = %s;\r\n", name, ret->name[0], ret->name[0]);
+					fprintf(info.fp, "\t\t_cpp->RegVar(\"%s\", &%s_%s);\r\n", ret->name[0], name, ret->name[0]);
 				}
 			}
 
@@ -2106,7 +2025,7 @@ cppNode* micpp::_global(CompilerInfo& info, bool reg)
 
 _GLOBAL_ERROR:
 		info.error = true;
-		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "global format error");
+		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "global format error");
 		micpp::PRINT(micpp::STRING);
 		delete ret;
 	}
@@ -2219,7 +2138,7 @@ cppNode* micpp::_local(CompilerInfo& info)
 
 _LOCAL_ERROR:
 		info.error = true;
-		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "local format error");
+		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "local format error");
 		micpp::PRINT(micpp::STRING);
 		delete ret;
 	}
@@ -2288,8 +2207,8 @@ cppNode* micpp::_function(CompilerInfo& info)
 	}
 	else
 	{
-		strcpy(ret->name[MICPP_MAX_PARAM], info.token);
-		nodemap.insert(std::pair<std::string, cppNode*>(ret->name[MICPP_MAX_PARAM], ret));
+		strcpy(ret->name[micpp::MAX_PARAM], info.token);
+		nodemap.insert(std::pair<std::string, cppNode*>(ret->name[micpp::MAX_PARAM], ret));
 	}
 
 	for(int i=0; i < num; ++i)
@@ -2320,30 +2239,30 @@ cppNode* micpp::_function(CompilerInfo& info)
 
 	if(Token(info, TYPE_SYMBOL, ";"))
 	{
-		if(ret->node[MICPP_MAX_PARAM])
+		if(ret->node[micpp::MAX_PARAM])
 			goto _FUNCTION_ERROR;
 
 		return ret;
 	}
 
-	if(ret->node[MICPP_MAX_PARAM])
+	if(ret->node[micpp::MAX_PARAM])
 		goto _FUNCTION_ERROR;
 	else
-		ret->node[MICPP_MAX_PARAM] = _block(info);
+		ret->node[micpp::MAX_PARAM] = _block(info);
 
-	if(info.error || ret->node[MICPP_MAX_PARAM] == NULL)
+	if(info.error || ret->node[micpp::MAX_PARAM] == NULL)
 		goto _FUNCTION_ERROR;
 
 	if(info.fp)
-		fprintf(info.fp, "\t\t_cpp->RegFun(\"%s\", %s);\r\n", ret->name[MICPP_MAX_PARAM], ret->name[MICPP_MAX_PARAM]);
+		fprintf(info.fp, "\t\t_cpp->RegFun(\"%s\", %s);\r\n", ret->name[micpp::MAX_PARAM], ret->name[micpp::MAX_PARAM]);
 
 	return ret;
 
 _FUNCTION_ERROR:
-	nodemap.erase(nodemap.find(ret->name[MICPP_MAX_PARAM]));
+	nodemap.erase(nodemap.find(ret->name[micpp::MAX_PARAM]));
 
 	info.error = true;
-	sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "function format error");
+	sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "function format error");
 	micpp::PRINT(micpp::STRING);
 	delete ret;
 	return NULL;
@@ -2362,7 +2281,7 @@ cppNode* micpp::_if(CompilerInfo& info)
 
 		if(Token(info, TYPE_SYMBOL, "(") == false)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss (");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss (");
 			micpp::PRINT(micpp::STRING);
 			goto _IF_ERROR;
 		}
@@ -2371,14 +2290,14 @@ cppNode* micpp::_if(CompilerInfo& info)
 
 		if(ret->op == NULL)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss expression");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss expression");
 			micpp::PRINT(micpp::STRING);
 			goto _IF_ERROR;
 		}
 
 		if(Token(info, TYPE_SYMBOL, ")") == false)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss )");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss )");
 			micpp::PRINT(micpp::STRING);
 			goto _IF_ERROR;
 		}
@@ -2389,7 +2308,7 @@ cppNode* micpp::_if(CompilerInfo& info)
 
 		if(ret->block == NULL)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss body");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss body");
 			micpp::PRINT(micpp::STRING);
 			goto _IF_ERROR;
 		}
@@ -2403,7 +2322,7 @@ cppNode* micpp::_if(CompilerInfo& info)
 			{
 				if(Token(info, TYPE_SYMBOL, "(") == false)
 				{
-					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss (");
+					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss (");
 					micpp::PRINT(micpp::STRING);
 					goto _IF_ERROR;
 				}
@@ -2412,14 +2331,14 @@ cppNode* micpp::_if(CompilerInfo& info)
 
 				if(p->op == NULL)
 				{
-					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss expression");
+					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss expression");
 					micpp::PRINT(micpp::STRING);
 					goto _IF_ERROR;
 				}
 
 				if(Token(info, TYPE_SYMBOL, ")") == false)
 				{
-					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss )");
+					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss )");
 					micpp::PRINT(micpp::STRING);
 					goto _IF_ERROR;
 				}
@@ -2431,7 +2350,7 @@ cppNode* micpp::_if(CompilerInfo& info)
 
 			if(p->block == NULL)
 			{
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss body");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss body");
 				micpp::PRINT(micpp::STRING);
 				goto _IF_ERROR;
 			}
@@ -2465,7 +2384,7 @@ cppNode* micpp::_for(CompilerInfo& info)
 
 		if(Token(info, TYPE_SYMBOL, "(") == false)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss (");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss (");
 			micpp::PRINT(micpp::STRING);
 			goto _FOR_ERROR;
 		}
@@ -2480,7 +2399,7 @@ cppNode* micpp::_for(CompilerInfo& info)
 			init = _expression(info);
 			if(Token(info, TYPE_SYMBOL, ";") == false)
 			{
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss ;");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss ;");
 				micpp::PRINT(micpp::STRING);
 				goto _FOR_ERROR;
 			}
@@ -2489,7 +2408,7 @@ cppNode* micpp::_for(CompilerInfo& info)
 		ret->condition = _expression(info);
 		if(Token(info, TYPE_SYMBOL, ";") == false)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss ;");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss ;");
 			micpp::PRINT(micpp::STRING);
 			goto _FOR_ERROR;
 		}
@@ -2497,7 +2416,7 @@ cppNode* micpp::_for(CompilerInfo& info)
 		ret->loop = _expression(info);
 		if(Token(info, TYPE_SYMBOL, ")") == false)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss )");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss )");
 			micpp::PRINT(micpp::STRING);
 			goto _FOR_ERROR;
 		}
@@ -2508,7 +2427,7 @@ cppNode* micpp::_for(CompilerInfo& info)
 
 		if(ret->block == NULL)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss body");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss body");
 			micpp::PRINT(micpp::STRING);
 			goto _FOR_ERROR;
 		}
@@ -2583,7 +2502,7 @@ cppNode* micpp::_block(CompilerInfo& info)
 
 				if(var.find(((cppGlobal*)node)->name[0]) != var.end())
 				{
-					sprintf(micpp::STRING, "micpp %s(%d) : \"%s\" redefine\n", micpp::Name(this), info.line, ((cppGlobal*)node)->name[0]);
+					sprintf(micpp::STRING, "micpp %s(%d) : \"%s\" redefine\n", name, info.line, ((cppGlobal*)node)->name[0]);
 					micpp::PRINT(micpp::STRING);
 					goto _BLOCK_ERROR;
 				}
@@ -2601,7 +2520,7 @@ cppNode* micpp::_block(CompilerInfo& info)
 
 				if(var.find(((cppLocal*)node)->name[0]) != var.end())
 				{
-					sprintf(micpp::STRING, "micpp %s(%d) : \"%s\" redefine\n", micpp::Name(this), info.line, ((cppLocal*)node)->name[0]);
+					sprintf(micpp::STRING, "micpp %s(%d) : \"%s\" redefine\n", name, info.line, ((cppLocal*)node)->name[0]);
 					micpp::PRINT(micpp::STRING);
 					goto _BLOCK_ERROR;
 				}
@@ -2616,7 +2535,7 @@ cppNode* micpp::_block(CompilerInfo& info)
 			{
 				if(Token(info, TYPE_SYMBOL, ";") == false)
 				{
-					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss ;");
+					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss ;");
 					micpp::PRINT(micpp::STRING);
 					goto _BLOCK_ERROR;
 				}
@@ -2631,7 +2550,7 @@ cppNode* micpp::_block(CompilerInfo& info)
 			{
 				if(Token(info, TYPE_SYMBOL, ";") == false)
 				{
-					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss ;");
+					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss ;");
 					micpp::PRINT(micpp::STRING);
 					goto _BLOCK_ERROR;
 				}
@@ -2655,7 +2574,7 @@ cppNode* micpp::_block(CompilerInfo& info)
 
 				if(Token(info, TYPE_SYMBOL, ";") == false)
 				{
-					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss ;");
+					sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss ;");
 					micpp::PRINT(micpp::STRING);
 					goto _BLOCK_ERROR;
 				}
@@ -2664,7 +2583,7 @@ cppNode* micpp::_block(CompilerInfo& info)
 			else if(r)
 			{
 				delete r;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss expression");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss expression");
 				micpp::PRINT(micpp::STRING);
 				goto _BLOCK_ERROR;
 			}
@@ -2675,7 +2594,7 @@ cppNode* micpp::_block(CompilerInfo& info)
 			if(Token(info, TYPE_SYMBOL, "}"))
 				break;
 
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "unknown in block");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "unknown in block");
 			micpp::PRINT(micpp::STRING);
 			goto _BLOCK_ERROR;
 		}
@@ -2720,7 +2639,7 @@ cppNode* micpp::_line(CompilerInfo& info)
 	{
 		if(Token(info, TYPE_SYMBOL, ";") == false)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss ;");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss ;");
 			micpp::PRINT(micpp::STRING);
 			goto _LINE_ERROR;
 		}
@@ -2735,7 +2654,7 @@ cppNode* micpp::_line(CompilerInfo& info)
 	{
 		if(Token(info, TYPE_SYMBOL, ";") == false)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss ;");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss ;");
 			micpp::PRINT(micpp::STRING);
 			goto _LINE_ERROR;
 		}
@@ -2759,7 +2678,7 @@ cppNode* micpp::_line(CompilerInfo& info)
 
 		if(Token(info, TYPE_SYMBOL, ";") == false)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss ;");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss ;");
 			micpp::PRINT(micpp::STRING);
 			goto _LINE_ERROR;
 		}
@@ -2768,7 +2687,7 @@ cppNode* micpp::_line(CompilerInfo& info)
 	else if(r)
 	{
 		delete r;
-		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss expression");
+		sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss expression");
 		micpp::PRINT(micpp::STRING);
 		goto _LINE_ERROR;
 	}
@@ -2776,7 +2695,7 @@ cppNode* micpp::_line(CompilerInfo& info)
 	if(Token(info, TYPE_SYMBOL, ";"))
 		return ret;
 
-	sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "unknown in line");
+	sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "unknown in line");
 	micpp::PRINT(micpp::STRING);
 
 _LINE_ERROR:
@@ -2803,7 +2722,7 @@ cppNode* micpp::_expression(CompilerInfo& info)
 		if(op->right == NULL)
 		{
 			info.error = true;
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss right");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss right");
 			micpp::PRINT(micpp::STRING);
 			delete ret;
 			return NULL;
@@ -2821,7 +2740,7 @@ cppNode* micpp::_expression(CompilerInfo& info)
 			if(op->right == NULL)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss right");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss right");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -2852,7 +2771,7 @@ cppNode* micpp::_layer0(CompilerInfo& info)
 			if(op->right == NULL)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss right");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss right");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -2883,7 +2802,7 @@ cppNode* micpp::_layer1(CompilerInfo& info)
 			if(op->right == NULL)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss right");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss right");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -2919,7 +2838,7 @@ cppNode* micpp::_layer2(CompilerInfo& info)
 			if(op->right == NULL)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss right");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss right");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -2959,7 +2878,7 @@ cppNode* micpp::_layer3(CompilerInfo& info)
 			if(op->right == NULL)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss right");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss right");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -2995,7 +2914,7 @@ cppNode* micpp::_layer4(CompilerInfo& info)
 			if(op->right == NULL)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss right");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss right");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -3035,7 +2954,7 @@ cppNode* micpp::_layer5(CompilerInfo& info)
 			if(op->right == NULL)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss right");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss right");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -3083,7 +3002,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 		if(ret->left == NULL)
 		{
 			info.error = true;
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss right");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss right");
 			micpp::PRINT(micpp::STRING);
 			delete ret;
 			return NULL;
@@ -3097,7 +3016,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 		if(ret && Token(info, TYPE_SYMBOL, ")") == false)
 		{
 			info.error = true;
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss )");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss )");
 			micpp::PRINT(micpp::STRING);
 			delete ret;
 			return NULL;
@@ -3145,7 +3064,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 			else
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss number");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss number");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -3158,7 +3077,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 			else
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss \'f\'");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss \'f\'");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -3170,7 +3089,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 		else if(ret->name[0][0] == '0' && ret->name[0][1] != '\0')
 		{
 			info.error = true;
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "number format error");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "number format error");
 			micpp::PRINT(micpp::STRING);
 			delete ret;
 			return NULL;
@@ -3185,9 +3104,10 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 		ret->name[0][0] = '\0';
 		return ret;
 	}
-	else if(Token(info, TYPE_SYMBOL, "\'"))
+	else if((Token(info, TYPE_STRING, "L") && Token(info, TYPE_SYMBOL, "\'") && strcpy(info.token, "L")) || Token(info, TYPE_SYMBOL, "\'"))
 	{
 		cppVariable* ret = new cppVariable(this, info.line);
+		bool convert = (info.token[0] == 'L');
 
 		if(Token(info, TYPE_UNKNOWN, " "))
 		{
@@ -3246,14 +3166,14 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 
 		if(info.error)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "unknown char");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "unknown char");
 			micpp::PRINT(micpp::STRING);
 			delete ret;
 			return NULL;
 		}
 		else if(Token(info, TYPE_SYMBOL, "\'") == false)
 		{
-			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss \'");
+			sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss \'");
 			micpp::PRINT(micpp::STRING);
 			delete ret;
 			return NULL;
@@ -3276,7 +3196,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 			if(Token(info, TYPE_STRING) == false)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss name");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss name");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -3295,7 +3215,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 			else
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss name");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss name");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -3325,7 +3245,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 						break;
 					}
 				}
-				while(((cppParam*)op->right)->num < MICPP_MAX_PARAM);
+				while(((cppParam*)op->right)->num < micpp::MAX_PARAM);
 			}
 			else if(!strcmp(info.token, "["))
 			{
@@ -3339,7 +3259,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 			if(op->right == NULL)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "unknown symbol");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "unknown symbol");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -3348,7 +3268,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 			if(op->op == cppNode::SYMBOL_ROUND_L && Token(info, TYPE_SYMBOL, ")") == false)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss )");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss )");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
@@ -3356,7 +3276,7 @@ cppNode* micpp::_layer6(CompilerInfo& info)
 			else if(op->op == cppNode::SYMBOL_SQARE_L && Token(info, TYPE_SYMBOL, "]") == false)
 			{
 				info.error = true;
-				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", micpp::Name(this), info.line, "miss ]");
+				sprintf(micpp::STRING, "micpp %s(%d) : %s\n", name, info.line, "miss ]");
 				micpp::PRINT(micpp::STRING);
 				delete ret;
 				return NULL;
