@@ -13,10 +13,10 @@ int main(int argc, char** argv)
 	hello_world::print();
 	
 	//micpp call hello_world::print
-	micpp::Call(cpp_hello_world->Function("print"));
+	(*cpp_hello_world->Function("print"))();
 	
 	//micpp call hello_world::print (other style)
-	micpp::Call(micpp::Find("hello_world")->Function("print"));
+	(*micpp::Find("hello_world")->Function("print"))();
 	
 	//destroy
 	micpp::Destroy(cpp_hello_world);
